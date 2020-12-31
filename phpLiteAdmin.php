@@ -1,5 +1,6 @@
 <?php
 namespace phpLiteAdmin;
+session_start();
 
 /**
  * @global array $Users
@@ -159,6 +160,28 @@ CSS;
      */
     public static function granted(): bool
     {
+        global $Users;
+
+        // Check login form and verify.
+        if (!empty($_POST['user']) AND !empty($_POST['pass']) AND isset($Users[$_POST['user']]) AND password_verify($_POST['pass'], $Users[$_POST['user']]))
+        {
+            if (isset($_POST['remember']))
+            {
+                setcookie(session_name(), session_id(), strtotime('+1 Month'), '/', $_SERVER['HTTP_HOST'], true, true);
+            }
+
+            $_SESSION['loggedIn'] = true;
+
+            return true;
+        }
+
+        // Check sessions.
+        if (isset($_SESSION) AND isset($_SESSION['loggedIn']) AND $_SESSION['loggedIn'] === true)
+        {
+            return true;
+        }
+
+
         return false;
     }
 
@@ -285,4 +308,8 @@ CSS;
 $page = new Page();
 $page->emit();
 ?>
+        <h1>Session</h1>
+        <pre><?=print_r($_SESSION, true)?></pre>
+        <h2>Cookies</h2>
+        <pre><?=print_r($_COOKIE, true)?></pre>
         Hello World

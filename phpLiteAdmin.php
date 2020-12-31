@@ -152,7 +152,6 @@ class Access
             }
 CSS;
 
-
     /**
      * Asks the question is Access Granted? And finds the answer.
      * 
@@ -248,9 +247,10 @@ CSS;
                     </main>
 
             HTML;
+            return false;
         }
 
-        return false;
+        return true;
     }
 
     /**
@@ -283,6 +283,6 @@ CSS;
 }
 
 $page = new Page();
-$page->emit();  
+$page->emit();
 ?>
         Hello World

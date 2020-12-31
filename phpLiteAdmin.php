@@ -37,6 +37,14 @@ class Page
         public string $title = 'phpLiteAdmin',
         public bool $contain = true,
     ) {
+        global $Users;
+
+        // Reset sessions if there is an empty Users array.
+        if (empty($Users) AND isset($_SESSION))
+        {
+            unset($_SESSION);
+        }
+
         // Before we do anything or allow anything, we make sure the client is authenticated with the page.
         if (!Access::granted())
         {
@@ -180,7 +188,6 @@ CSS;
         {
             return true;
         }
-
 
         return false;
     }

@@ -8,6 +8,7 @@ session_start();
  * An array of users that should be able to login to the site.
  */
 $Users = [
+    'username' => '$2y$10$KD8r2MpegIYfeZJ1.gFlC.b0h4vPv3am8f2f3PXvpGcW5wmg0RZQ6',
 ];
 
 /**
@@ -40,7 +41,7 @@ class Page
         global $Users;
 
         // Reset sessions if there is an empty Users array.
-        if (empty($Users) AND isset($_SESSION))
+        if (isset($_GET['signout']) OR empty($Users) AND isset($_SESSION))
         {
             unset($_SESSION);
         }
@@ -313,10 +314,144 @@ CSS;
 }
 
 $page = new Page();
+$page->contain = false;
 $page->emit();
 ?>
-        <h1>Session</h1>
-        <pre><?=print_r($_SESSION, true)?></pre>
-        <h2>Cookies</h2>
-        <pre><?=print_r($_COOKIE, true)?></pre>
-        Hello World
+        <style>
+            body {
+                font-size: .875rem;
+            }
+
+            .feather {
+                width: 16px;
+                height: 16px;
+                vertical-align: text-bottom;
+            }
+
+            /*
+             * Sidebar
+             */
+            .sidebar {
+                position: fixed;
+                top: 0;
+                bottom: 0;
+                left: 0;
+                z-index: 100; /* Behind the navbar */
+                padding: 48px 0 0; /* Height of navbar */
+                box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+            }
+
+            @media (max-width: 767.98px) {
+                .sidebar {
+                    top: 5rem;
+                }
+            }
+
+            .sidebar-sticky {
+                position: relative;
+                top: 0;
+                height: calc(100vh - 48px);
+                padding-top: .5rem;
+                overflow-x: hidden;
+                overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
+            }
+
+            .sidebar .nav-link {
+                font-weight: 500;
+                color: #333;
+            }
+
+            .sidebar .nav-link .feather {
+                margin-right: 4px;
+                color: #727272;
+            }
+
+            .sidebar .nav-link.active {
+                color: #007bff;
+            }
+
+            .sidebar .nav-link:hover .feather,
+            .sidebar .nav-link.active .feather {
+                color: inherit;
+            }
+
+            .sidebar-heading {
+                font-size: .75rem;
+                text-transform: uppercase;
+            }
+
+            /*
+             * Navbar
+             */
+
+            .navbar-brand {
+                padding-top: .75rem;
+                padding-bottom: .75rem;
+                font-size: 1rem;
+                background-color: rgba(0, 0, 0, .25);
+                box-shadow: inset -1px 0 0 rgba(0, 0, 0, .25);
+            }
+
+            .navbar .navbar-toggler {
+                top: .25rem;
+                right: 1rem;
+            }
+
+            .navbar .form-control {
+                padding: .75rem 1rem;
+                border-width: 0;
+                border-radius: 0;
+            }
+
+            .form-control-dark {
+                color: #fff;
+                background-color: rgba(255, 255, 255, .1);
+                border-color: rgba(255, 255, 255, .1);
+            }
+
+            .form-control-dark:focus {
+                border-color: transparent;
+                box-shadow: 0 0 0 3px rgba(255, 255, 255, .25);
+            }
+
+            .bd-placeholder-img {
+                font-size: 1.125rem;
+                text-anchor: middle;
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                user-select: none;
+            }
+
+            @media (min-width: 768px) {
+                .bd-placeholder-img-lg {
+                    font-size: 3.5rem;
+                }
+            }
+
+        </style>
+        <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
+            <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3" href="<?=$_SERVER['SCRIPT_NAME']?>">phpLiteAdmin 2.0.0</a>
+            <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <input class="form-control form-control-dark w-100" type="text" placeholder="Search" aria-label="Search">
+            <ul class="navbar-nav px-3">
+                <li class="nav-item text-nowrap">
+                    <a class="nav-link" href="?signout">Sign out</a>
+                </li>
+            </ul>
+        </header>
+        <div class="container-fluid">
+            <aside id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+                Menu Items
+            </aside>
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <h1>Session</h1>
+                <pre><?=print_r($_SESSION, true)?></pre>
+                <h2>Cookies</h2>
+                <pre><?=print_r($_COOKIE, true)?></pre>
+                <h2>Server</h2>
+                <pre><?=print_r($_SERVER, true)?></pre>
+                Hello World
+            </main>
+        </div>

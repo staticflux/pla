@@ -3,6 +3,11 @@ namespace phpLiteAdmin;
 session_start();
 
 /**
+ * @global string VERSION
+ */
+const VERSION = '2.0.0';
+
+/**
  * @global array $Users
  * 
  * An array of users that should be able to login to the site.
@@ -16,8 +21,13 @@ $Users = [
  * 
  * Contains the name of the database as the $key and it's location on the file system as the value.
  */
-$database = [
-    'MimoCAD' => './MimoCAD.db',
+$Database = [
+    'MimoCAD' => './website.db',
+    'MimoSDR' => './MimoSDR.db',
+    'SBUHEMS' => './sbuhems.db',
+    'Suffolk' => './suffolk.db',
+    'WLVAC' => './wlvac.db',
+    'MVAC' => './mvac.db',
 ];
 
 /**
@@ -313,6 +323,76 @@ CSS;
     }
 }
 
+/**
+ * Database
+ */
+class Database extends \PDO
+{
+    /**
+     * Database connection.
+     */
+    public \PDO $db;
+
+    /**
+     * File size of the database in bytes.
+     */
+    public ?int $size = null;
+
+    /**
+     *
+     */
+    public ?array $schema = [];
+
+    /**
+     * Setups the Database class so all properties are set correctly and ready for use.
+     *
+     * @param string $filePath - Path to the database file.
+     * @param string $name - Friendly name of the database.
+     */
+    public function __construct(
+        string $filePath,
+        public ?string $name = NULL,
+    )
+    {
+        parent::__construct('sqlite:' . $filePath);
+        $this->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $this->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
+        $this->query('PRAGMA foreign_keys = ON;');
+        $this->getSchema();
+    }
+
+    /**
+     * Prepares a statement for execution and returns a statement object
+     *
+     * @param string $statement
+     * This must be a valid SQL statement template for the target database server.
+     * @param array $driver_options
+     * This array holds one or more `key => value` pairs to set attribute values for the PDOStatement object that this method returns. You would most commonly use this to set the `PDO::ATTR_CURSOR` value to `PDO::CURSOR_SCROLL` to request a scrollable cursor. Some drivers have driver-specific options that may be set at prepare-time.
+     */
+    public function prepare(string $statement, array $driver_options = []): \PDOStatement
+    {
+        return parent::prepare($statement, $driver_options);
+    }
+
+    /**
+     * https://sqlite.org/schematab.html
+     */
+    public function getSchema()
+    {
+        foreach ($this->query('SELECT rowid, * FROM sqlite_schema ORDER BY name;') as $row)
+        {
+            $this->schema[$row['rowid']] = $row;
+        }
+    }
+}
+
+foreach ($Database as $name => $path)
+{
+    static $dbs = [];
+
+    $dbs[] = new Database($path, $name); 
+}
+
 $page = new Page();
 $page->contain = false;
 $page->emit();
@@ -339,6 +419,14 @@ $page->emit();
                 z-index: 100; /* Behind the navbar */
                 padding: 48px 0 0; /* Height of navbar */
                 box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+            }
+
+
+            /*
+             * Scroll the sidebar.
+             */
+            aside {
+                overflow-y: auto
             }
 
             @media (max-width: 767.98px) {
@@ -430,7 +518,7 @@ $page->emit();
 
         </style>
         <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
-            <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3" href="<?=$_SERVER['SCRIPT_NAME']?>">phpLiteAdmin 2.0.0</a>
+            <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3" href="<?=$_SERVER['SCRIPT_NAME']?>">phpLiteAdmin <?=VERSION?></a>
             <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -443,15 +531,16 @@ $page->emit();
         </header>
         <div class="container-fluid">
             <aside id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
-                Menu Items
+<?php   foreach ($dbs as $idx => $db): ?>
+                <ul class="nav flex-column">
+                    <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"><?=$db->name?></h6>
+<?php           foreach ($db->schema as $table):    ?>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="?db=<?=$idx?>&table=<?=$table['name']?>">[<?=$table['type']?>] <?=$table['name']?></a></li>
+<?php           endforeach; ?>
+                </ul>
+<?php   endforeach;  ?>
             </aside>
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-                <h1>Session</h1>
-                <pre><?=print_r($_SESSION, true)?></pre>
-                <h2>Cookies</h2>
-                <pre><?=print_r($_COOKIE, true)?></pre>
-                <h2>Server</h2>
-                <pre><?=print_r($_SERVER, true)?></pre>
                 Hello World
             </main>
         </div>

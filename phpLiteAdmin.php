@@ -431,6 +431,81 @@ class Database extends \PDO
         $select->execute();
         return $select->fetchColumn();
     }
+
+    /**
+     * Is Writable?
+     * 
+     * @return bool TRUE if we can, FALSE if we can't.
+     */
+    public function isWriteable(): bool
+    {
+        return is_writable($this->filePath) AND is_writable(dirname($this->filePath));
+    }
+
+    /**
+     * Is Readable?
+     * 
+     * @return bool TRUE if we can, FALSE if we can't.
+     */
+    public function isReadable(): bool
+    {
+        return is_readable($this->filePath);
+    }
+
+    /**
+     * 
+     * 
+     * @return string Read / Write State as string.
+     */
+    public function strReadWrite(): string
+    {
+        $return = '[';
+        $return .= ($this->isReadable()) ? 'R' : ' ';
+        $return .= ($this->isWriteable()) ? 'W' : ' ';
+        return $return . ']';
+    }
+
+    /**
+     * @return int - The number of records in the table.
+     */
+    public function getRecords(string $table): ?int
+    {
+        try {
+            $select = $this->prepare("SELECT count(*) FROM $table;");
+            $select->execute();
+        } catch (\Exception $e) {
+            return null;
+        }
+        return $select->fetchColumn();
+    }
+
+    public function getColums(string $table): array
+    {
+        $select = $this->prepare("pragma table_info($table);");
+        $select->execute();
+        return $select->fetchAll();
+    }
+
+    /**
+     * Themeing helpers
+     */
+
+    /**
+     * Is this database or table selected?
+     */
+    public function selected(?string $table = null): bool
+    {
+        global $dbs;
+
+        $database = (function() use ($dbs) {
+            return (isset($_GET['db']) AND $dbs[$_GET['db']] == $this) ? true : false;
+        })();
+
+        if (null === $table)
+            return $database;
+
+        return (isset($_GET['table']) AND $_GET['table'] == $table) ? true : false;
+    }
 }
 
 foreach ($Database as $name => $path)
@@ -452,6 +527,9 @@ $page->emit();
                 background: #FFF;
                 color: #000;
             }
+            a {
+                text-decoration: none;
+            }
             header {
                 background: #000;
             }
@@ -460,6 +538,7 @@ $page->emit();
             }
             aside a {
                 color: #000;
+
             }
             /**
              * Header
@@ -469,11 +548,12 @@ $page->emit();
                 padding: 0;
                 line-height: 1em;
             }
-            header a {
+            header center {
                 padding-top: .75rem;
                 padding-bottom: .75rem;
+            }
+            header a {
                 font-size: 1rem;
-                text-decoration: none;
             }
             header .toggler {
                 top: .25rem;
@@ -490,6 +570,7 @@ $page->emit();
             aside {
                 position: fixed;
                 top: 2.5rem;
+                padding-top: 1rem;
                 bottom: 0;
                 left: 0;
                 z-index: 100; /* Behind the navbar */
@@ -503,10 +584,12 @@ $page->emit();
             aside dl dt {
                 margin: 0;
                 padding: 0;
+                padding-left: 1rem;
             }
             aside dl dd {
                 margin: 0;
                 padding: 0;
+                padding-left: 2rem;
             }
             /**
              * Content
@@ -516,16 +599,20 @@ $page->emit();
             }
         </style>
         <header class="navbar sticky-top flex-md-nowrap p-0 shadow">
-            <a class="col-md-3 col-lg-2 me-0 px-3" href="<?=$_SERVER['SCRIPT_NAME']?>">phpLiteAdmin <?=VERSION?></a>
-            <a class="col-md-3 col-lg-2 me-0 px-3" href="?signout">Sign out</a>
+            <center class="col-md-3 col-lg-2 me-0 px-3">
+                <a href="<?=$_SERVER['SCRIPT_NAME']?>">phpLiteAdmin <?=VERSION?></a>
+            </center>
+            <center class="col-md-3 col-lg-2 me-0 px-3">
+                <a href="?signout">Sign out</a>
+            </center>
         </header>
         <div class="container-fluid">
             <aside class="col-md-3 col-lg-2 d-md-block sidebar collapse">
 <?php   foreach ($dbs as $idx => $db): ?>
                 <dl class="flex-column">
-                    <dt><a class="nav-link" aria-current="page" href="?db=<?=$idx?>"><?=$db->name?></a></dt>
+                    <dt><a class="<?=($db->selected()) ? 'active' : null?>" aria-current="page" href="?db=<?=$idx?>"><?=$db->strReadWrite()?> <?=$db->name?></a></dt>
 <?php           foreach ($db->schema as $table):    ?>
-                    <dd><a class="nav-link" aria-current="page" href="?db=<?=$idx?>&table=<?=$table['name']?>">[<?=$table['type']?>] <?=$table['name']?></a></dd>
+                    <dd><a class="<?=($db->selected($table['name'])) ? 'active' : null?>" aria-current="page" href="?db=<?=$idx?>&table=<?=$table['name']?>">[<?=$table['type']?>] <?=$table['name']?></a></dd>
 <?php           endforeach; ?>
                 </dl>
 <?php   endforeach;  ?>
@@ -536,13 +623,67 @@ $page->emit();
                 <label>SQLite Installed</label> <var><?=\SQLite3::version()['versionString']?></var><br />
                 <label>Date Time</label> <var><?=date('Y-m-d H:i:s')?></var><br />
 <?php   if (isset($_GET['phpinfo'])):   ?>
+
                 <?php phpinfo(); ?>
+
+<?php   elseif (isset($_GET['db']) AND isset($_GET['table'])): ?>
+
+                <table class="table">
+                    <thead>
+                        <tr>
+<?php       foreach ($dbs[$_GET['db']]->getColums($_GET['table']) as ['name' => $name, 'type' => $type]):  ?>
+                            <td><?=$name?></td>
+<?php       endforeach;   ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+<?php       foreach ( $dbs[$_GET['db']]->query("SELECT * FROM {$_GET['table']};") as $row ): ?>
+                        <tr>
+<?php           foreach ($row as $item):    ?>
+                            <td><?=$item?></td>
+<?php           endforeach; ?>
+                        </tr>
+<?php       endforeach; ?>
+                    </tbody>
+                </table>
+
 <?php   elseif (isset($_GET['db'])):   ?>
                 <label>Database name</label> <var><?=$dbs[$_GET['db']]->name?></var><br />
                 <label>Path to database</label> <var><?=$dbs[$_GET['db']]->filePath?></var><br />
                 <label>Size of database</label> <var><?=$dbs[$_GET['db']]->getSize()?></var><br />
                 <label>Database last modified</label> <var><?=$dbs[$_GET['db']]->getModifed()->format('Y-m-d H:i:s')?></var><br />
                 <label>SQLite version</label> <var><?=$dbs[$_GET['db']]->getVersion()?></var><br />
+
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <td>Type</td>
+                            <td>Name</td>
+                            <td colspan="10">Actions</td>
+                            <td>Records</td>
+                        </tr>
+                    </thead>
+                    <tbody>
+<?php           foreach ($dbs[$_GET['db']]->schema as $table):    ?>
+                        <tr>
+                            <th><?=$table['type']?></th>
+                            <td><a href="?db=<?=$_GET['db']?>&table=<?=$table['name']?>"><?=$table['name']?></a></td>
+                            <td>Browse</td>
+                            <td>Structure</td>
+                            <td>SQL</td>
+                            <td>Search</td>
+                            <td>Insert</td>
+                            <td>Export</td>
+                            <td>Import</td>
+                            <td>Rename</td>
+                            <td>Empty</td>
+                            <td>Drop</td>
+                            <td><?=$dbs[$_GET['db']]->getRecords($table['name'])?></td>
+                        </tr>
+<?php           endforeach; ?>
+                    </tbody>
+                </table>
+
 <?php   endif;  ?>
             </main>
         </div>

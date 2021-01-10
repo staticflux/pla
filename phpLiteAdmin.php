@@ -350,7 +350,7 @@ class Database extends \PDO
      * @param string $name - Friendly name of the database.
      */
     public function __construct(
-        string $filePath,
+        public string $filePath,
         public ?string $name = NULL,
     )
     {
@@ -384,6 +384,53 @@ class Database extends \PDO
             $this->schema[$row['rowid']] = $row;
         }
     }
+
+    /**
+     * Gets the file size of the database on disk.
+     * 
+     * @return Returns the file size.
+     */
+    public function getSize(): string
+    {
+         $B = 1;
+        $KB =  $B * 1024;
+        $MB = $KB * 1024;
+        $GB = $MB * 1024;
+
+        $bytes = filesize($this->filePath);
+
+        $units = match (true)
+        {
+            $bytes >= $GB => ['suffix' => 'GiB', 'base' => $GB, 'css' => 'text-dark'],
+            $bytes >= $MB => ['suffix' => 'MiB', 'base' => $MB, 'css' => 'text-light'],
+            $bytes >= $KB => ['suffix' => 'KiB', 'base' => $KB, 'css' => 'text-muted'],
+            default       => ['suffix' =>   'B', 'base' =>  $B, 'css' => 'text-danger']
+        };
+
+        return sprintf('%.3f', $bytes / $units['base']) . $units['suffix'];
+    }
+
+    /**
+     * Gets the date this database was last modified
+     *
+     * @return DateTime with time set to the modifed date of the file.
+     */
+    public function getModifed(): \DateTime
+    {
+        return new \DateTime('@' . filemtime($this->filePath));
+    }
+
+    /**
+     * Gets the version of the database from the database file.
+     *
+     * @return string SQLite Version.
+     */
+    public function getVersion(): string
+    {
+        $select = $this->prepare('SELECT sqlite_version();');
+        $select->execute();
+        return $select->fetchColumn();
+    }
 }
 
 foreach ($Database as $name => $path)
@@ -398,149 +445,104 @@ $page->contain = false;
 $page->emit();
 ?>
         <style>
-            body {
-                font-size: .875rem;
-            }
-
-            .feather {
-                width: 16px;
-                height: 16px;
-                vertical-align: text-bottom;
-            }
-
-            /*
-             * Sidebar
+            /**
+             * Dark Mode
              */
-            .sidebar {
-                position: fixed;
-                top: 0;
-                bottom: 0;
-                left: 0;
-                z-index: 100; /* Behind the navbar */
-                padding: 48px 0 0; /* Height of navbar */
-                box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+            html, body {
+                background: #FFF;
+                color: #000;
             }
-
-
-            /*
-             * Scroll the sidebar.
+            header {
+                background: #000;
+            }
+            header a {
+                color: #FFF;
+            }
+            aside a {
+                color: #000;
+            }
+            /**
+             * Header
              */
-            aside {
-                overflow-y: auto
+            header {
+                margin: 0;
+                padding: 0;
+                line-height: 1em;
             }
-
-            @media (max-width: 767.98px) {
-                .sidebar {
-                    top: 5rem;
-                }
-            }
-
-            .sidebar-sticky {
-                position: relative;
-                top: 0;
-                height: calc(100vh - 48px);
-                padding-top: .5rem;
-                overflow-x: hidden;
-                overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
-            }
-
-            .sidebar .nav-link {
-                font-weight: 500;
-                color: #333;
-            }
-
-            .sidebar .nav-link .feather {
-                margin-right: 4px;
-                color: #727272;
-            }
-
-            .sidebar .nav-link.active {
-                color: #007bff;
-            }
-
-            .sidebar .nav-link:hover .feather,
-            .sidebar .nav-link.active .feather {
-                color: inherit;
-            }
-
-            .sidebar-heading {
-                font-size: .75rem;
-                text-transform: uppercase;
-            }
-
-            /*
-             * Navbar
-             */
-
-            .navbar-brand {
+            header a {
                 padding-top: .75rem;
                 padding-bottom: .75rem;
                 font-size: 1rem;
-                background-color: rgba(0, 0, 0, .25);
-                box-shadow: inset -1px 0 0 rgba(0, 0, 0, .25);
+                text-decoration: none;
             }
-
-            .navbar .navbar-toggler {
+            header .toggler {
                 top: .25rem;
                 right: 1rem;
             }
-
-            .navbar .form-control {
+            header .form-control {
                 padding: .75rem 1rem;
                 border-width: 0;
                 border-radius: 0;
             }
-
-            .form-control-dark {
-                color: #fff;
-                background-color: rgba(255, 255, 255, .1);
-                border-color: rgba(255, 255, 255, .1);
+            /**
+             * Sidebar
+             */
+            aside {
+                position: fixed;
+                top: 2.5rem;
+                bottom: 0;
+                left: 0;
+                z-index: 100; /* Behind the navbar */
+                box-shadow: inset -1rem 0 1rem rgba(0, 0, 0, .1);
+                overflow-y: auto
             }
-
-            .form-control-dark:focus {
-                border-color: transparent;
-                box-shadow: 0 0 0 3px rgba(255, 255, 255, .25);
+            aside dl {
+                margin: 0;
+                padding: 0;
             }
-
-            .bd-placeholder-img {
-                font-size: 1.125rem;
-                text-anchor: middle;
-                -webkit-user-select: none;
-                -moz-user-select: none;
-                user-select: none;
+            aside dl dt {
+                margin: 0;
+                padding: 0;
             }
-
-            @media (min-width: 768px) {
-                .bd-placeholder-img-lg {
-                    font-size: 3.5rem;
-                }
+            aside dl dd {
+                margin: 0;
+                padding: 0;
             }
-
+            /**
+             * Content
+             */
+            main {
+                padding-top: 1rem;
+            }
         </style>
-        <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
-            <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3" href="<?=$_SERVER['SCRIPT_NAME']?>">phpLiteAdmin <?=VERSION?></a>
-            <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <input class="form-control form-control-dark w-100" type="text" placeholder="Search" aria-label="Search">
-            <ul class="navbar-nav px-3">
-                <li class="nav-item text-nowrap">
-                    <a class="nav-link" href="?signout">Sign out</a>
-                </li>
-            </ul>
+        <header class="navbar sticky-top flex-md-nowrap p-0 shadow">
+            <a class="col-md-3 col-lg-2 me-0 px-3" href="<?=$_SERVER['SCRIPT_NAME']?>">phpLiteAdmin <?=VERSION?></a>
+            <a class="col-md-3 col-lg-2 me-0 px-3" href="?signout">Sign out</a>
         </header>
         <div class="container-fluid">
-            <aside id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+            <aside class="col-md-3 col-lg-2 d-md-block sidebar collapse">
 <?php   foreach ($dbs as $idx => $db): ?>
-                <ul class="nav flex-column">
-                    <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"><?=$db->name?></h6>
+                <dl class="flex-column">
+                    <dt><a class="nav-link" aria-current="page" href="?db=<?=$idx?>"><?=$db->name?></a></dt>
 <?php           foreach ($db->schema as $table):    ?>
-                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="?db=<?=$idx?>&table=<?=$table['name']?>">[<?=$table['type']?>] <?=$table['name']?></a></li>
+                    <dd><a class="nav-link" aria-current="page" href="?db=<?=$idx?>&table=<?=$table['name']?>">[<?=$table['type']?>] <?=$table['name']?></a></dd>
 <?php           endforeach; ?>
-                </ul>
+                </dl>
 <?php   endforeach;  ?>
             </aside>
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-                Hello World
+                <label>phpLiteAdmin Version</label> <var><?=VERSION?></var><br />
+                <label>PHP Version</label> <var><a href="?phpinfo"><?=phpversion()?></a></var><br />
+                <label>SQLite Installed</label> <var><?=\SQLite3::version()['versionString']?></var><br />
+                <label>Date Time</label> <var><?=date('Y-m-d H:i:s')?></var><br />
+<?php   if (isset($_GET['phpinfo'])):   ?>
+                <?php phpinfo(); ?>
+<?php   elseif (isset($_GET['db'])):   ?>
+                <label>Database name</label> <var><?=$dbs[$_GET['db']]->name?></var><br />
+                <label>Path to database</label> <var><?=$dbs[$_GET['db']]->filePath?></var><br />
+                <label>Size of database</label> <var><?=$dbs[$_GET['db']]->getSize()?></var><br />
+                <label>Database last modified</label> <var><?=$dbs[$_GET['db']]->getModifed()->format('Y-m-d H:i:s')?></var><br />
+                <label>SQLite version</label> <var><?=$dbs[$_GET['db']]->getVersion()?></var><br />
+<?php   endif;  ?>
             </main>
         </div>

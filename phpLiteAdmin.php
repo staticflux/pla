@@ -1,11 +1,15 @@
 <?php
 namespace phpLiteAdmin;
+use \PDO as PDO;
+use \DateTime as DateTime;
+use \Exception as Exception;
+use \PDOStatement as PDOStatement;
 session_start();
 
 /**
  * @global string VERSION
  */
-const VERSION = '2.0.0';
+const VERSION = '2.0.0-alpha1';
 
 /**
  * @global array $Users
@@ -13,7 +17,6 @@ const VERSION = '2.0.0';
  * An array of users that should be able to login to the site.
  */
 $Users = [
-    'username' => '$2y$10$KD8r2MpegIYfeZJ1.gFlC.b0h4vPv3am8f2f3PXvpGcW5wmg0RZQ6',
 ];
 
 /**
@@ -22,12 +25,6 @@ $Users = [
  * Contains the name of the database as the $key and it's location on the file system as the value.
  */
 $Database = [
-    'MimoCAD' => './website.db',
-    'MimoSDR' => './MimoSDR.db',
-    'SBUHEMS' => './sbuhems.db',
-    'Suffolk' => './suffolk.db',
-    'WLVAC' => './wlvac.db',
-    'MVAC' => './mvac.db',
 ];
 
 /**
@@ -59,7 +56,7 @@ class Page
         // Before we do anything or allow anything, we make sure the client is authenticated with the page.
         if (!Access::granted())
         {
-            header('401 Unauthorized');
+            header('HTTP/1.0 401 Unauthorized');
             $this->title = 'Login';
             $this->contain = false;
             $this->emit();
@@ -80,8 +77,8 @@ class Page
             <head>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
-                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
                 <title>{$this->title}</title>
+                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6" crossorigin="anonymous">
             </head>
             <body>
 
@@ -115,7 +112,7 @@ class Page
         }
 
         echo <<<HTML
-                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
+                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js" integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf" crossorigin="anonymous"></script>
             </body>
         </html>
         HTML;
@@ -139,8 +136,11 @@ class Access
                 align-items: center;
                 padding-top: 40px;
                 padding-bottom: 40px;
-                background-color: #f5f5f5;
+                color: #FFF;
+                background: #203040;
+                background: repeating-linear-gradient(#203040, #243c4f 2px, #213445 2px);
             }
+
             .form-signin {
                 width: 100%;
                 max-width: 330px;
@@ -160,15 +160,39 @@ class Access
             .form-signin .form-control:focus {
                 z-index: 2;
             }
-            .form-signin input[type="email"] {
-                margin-bottom: -1px;
-                border-bottom-right-radius: 0;
+            .form-signin input {
+                border: 1px SOLID #4080B0;
+                color: #FFF;
+                background: #193F5C;
+            }
+            .form-signin input:hover {
+                color: #FFF;
+                background: #193F5C;
+            }
+            .form-signin input:hover, .form-signin input:active {
+                animation: 1s all ease-in;
+                border-color: #FA0;
+                color: #FFF;
+            }
+            .form-signin input:focus {
+                outline: none;
+                color: #FFF;
+                background: #002040;
+            }
+            .form-signin input:active {
+                color: #FFF;
+                background: #002040;
+            }
+            .form-signin input[type="text"] {
                 border-bottom-left-radius: 0;
+                border-bottom-right-radius: 0;
             }
             .form-signin input[type="password"] {
-                margin-bottom: 10px;
                 border-top-left-radius: 0;
                 border-top-right-radius: 0;
+            }
+            .form-signin input[type="checkbox"] {
+                filter: invert(100%) hue-rotate(180deg) brightness(1.5);
             }
 CSS;
 
@@ -251,13 +275,13 @@ CSS;
         if (isset($_POST['user']) AND isset($_POST['pass']) AND isset($_POST['passConfirm']))
         {
             if (!empty($Users) AND !Access::granted())
-                throw new \Exception('You must be logged in to add a new user.', 1);
+                throw new Exception('You must be logged in to add a new user.', 1);
 
             if (isset($Users[$_POST['user']]))
-                throw new \Exception('User name already taken.', 1);
+                throw new Exception('User name already taken.', 1);
 
             if ($_POST['pass'] !== $_POST['passConfirm'])
-                throw new \Exception('Passwords do not match.', 1);
+                throw new Exception('Passwords do not match.', 1);
 
             self::addUserToArray($_POST['user'], $_POST['pass']);
         }
@@ -326,12 +350,12 @@ CSS;
 /**
  * Database
  */
-class Database extends \PDO
+class Database extends PDO
 {
     /**
      * Database connection.
      */
-    public \PDO $db;
+    public PDO $db;
 
     /**
      * File size of the database in bytes.
@@ -354,24 +378,58 @@ class Database extends \PDO
         public ?string $name = NULL,
     )
     {
-        parent::__construct('sqlite:' . $filePath);
-        $this->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-        $this->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
-        $this->query('PRAGMA foreign_keys = ON;');
-        $this->getSchema();
+        $this->filePath = realpath($filePath);
+
+        try {
+            parent::__construct('sqlite:' . $filePath);
+            $this->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+            $this->query('PRAGMA foreign_keys = ON;');
+            $this->getSchema();
+        } catch (Exception $e) {
+            trigger_error($e->getMessage());
+            return false;
+        }
     }
 
     /**
-     * Prepares a statement for execution and returns a statement object
+     * Prepares a statement for execution and returns a statement object.
      *
      * @param string $statement
      * This must be a valid SQL statement template for the target database server.
      * @param array $driver_options
      * This array holds one or more `key => value` pairs to set attribute values for the PDOStatement object that this method returns. You would most commonly use this to set the `PDO::ATTR_CURSOR` value to `PDO::CURSOR_SCROLL` to request a scrollable cursor. Some drivers have driver-specific options that may be set at prepare-time.
      */
-    public function prepare(string $statement, array $driver_options = []): \PDOStatement
+    public function prepare(string $statement, array $driver_options = []): PDOStatement
     {
         return parent::prepare($statement, $driver_options);
+    }
+
+    /**
+     * Execute an SQL statement and return the number of affected rows.
+     * 
+     * @param string RAW Statement, must be escaped.
+     * @return false on failure or number of rows affected on success.
+     */
+    public function exec(string $statement): false|int
+    {
+        if (empty($statement))
+            return false;
+
+        $return = parent::exec($statement);
+        $this->getSchema();
+        return $return;
+    }
+
+    /**
+     * Can be used with query or prepare to convert those statements into HTML table(s).
+     * 
+     * @param PDOStatement $result Result of a PDO::statement or PDO::query.
+     * @return string HTML formatted text in the form of a table.
+     */
+    public function resultTable(PDOStatement $result): string
+    {
+        $result->fetchAll();
     }
 
     /**
@@ -379,7 +437,7 @@ class Database extends \PDO
      */
     public function getSchema()
     {
-        foreach ($this->query('SELECT rowid, * FROM sqlite_schema ORDER BY name;') as $row)
+        foreach ($this->query('SELECT rowid, * FROM sqlite_master WHERE type = "table" AND name NOT LIKE "sqlite_%" ORDER BY name;') as $row)
         {
             $this->schema[$row['rowid']] = $row;
         }
@@ -392,7 +450,7 @@ class Database extends \PDO
      */
     public function getSize(): string
     {
-         $B = 1;
+         $B =          1;
         $KB =  $B * 1024;
         $MB = $KB * 1024;
         $GB = $MB * 1024;
@@ -415,9 +473,9 @@ class Database extends \PDO
      *
      * @return DateTime with time set to the modifed date of the file.
      */
-    public function getModifed(): \DateTime
+    public function getModifed(): DateTime
     {
-        return new \DateTime('@' . filemtime($this->filePath));
+        return new DateTime('@' . filemtime($this->filePath));
     }
 
     /**
@@ -459,10 +517,10 @@ class Database extends \PDO
      */
     public function strReadWrite(): string
     {
-        $return = '[';
+        $return = '';
         $return .= ($this->isReadable()) ? 'R' : ' ';
         $return .= ($this->isWriteable()) ? 'W' : ' ';
-        return $return . ']';
+        return $return;
     }
 
     /**
@@ -471,9 +529,9 @@ class Database extends \PDO
     public function getRecords(string $table): ?int
     {
         try {
-            $select = $this->prepare("SELECT count(*) FROM $table;");
+            $select = $this->prepare("SELECT MAX(_ROWID_) FROM $table LIMIT 1;");
             $select->execute();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return null;
         }
         return $select->fetchColumn();
@@ -486,10 +544,17 @@ class Database extends \PDO
         return $select->fetchAll();
     }
 
+    public function getCreateStatement(string $table): ?string
+    {
+        $select = $this->prepare('SELECT sql FROM sqlite_master WHERE name = :table;');
+        $select->execute([':table' => $table]);
+        return $select->fetch()['sql'] ?? null;
+    }
+
     /**
      * Themeing helpers
      */
-
+    
     /**
      * Is this database or table selected?
      */
@@ -506,47 +571,115 @@ class Database extends \PDO
 
         return (isset($_GET['table']) AND $_GET['table'] == $table) ? true : false;
     }
-}
 
-foreach ($Database as $name => $path)
-{
-    static $dbs = [];
+    /**
+     * This is a document mutating function.
+     * If this was a rust function, I would mark this as unsafe.
+     * 
+     * @param string $dbName - Database Name
+     * @param string $dbPath - Database Path
+     * @return bool TRUE on Success or FALSE on Failure.
+     */
+    public static function addDBToArray(string $dbName, string $dbPath): bool
+    {
+        global $Database;
 
-    $dbs[] = new Database($path, $name); 
+        $document = file_get_contents(__FILE__);
+        $dbStrStart = strpos($document, '$Database = [' . "\n");
+        $dbStrEnd = strpos($document, '];', $dbStrStart);
+
+        $dbArrayRAW = '';
+
+        // Get the current list.
+        foreach ($Database ?? [] as $name => $path)
+            $dbArrayRAW = "    '$name' => '$path'," . "\n";
+
+        // Add to the end of the list.
+        $dbArrayRAW = "    '$dbName' => '$dbPath'," . "\n";
+
+        $document = substr_replace($document, $dbArrayRAW, $dbStrEnd, 0);
+
+        file_put_contents(__FILE__, $document);
+
+        return true;
+    }
+
 }
 
 $page = new Page();
 $page->contain = false;
 $page->emit();
+
+/**
+ * 
+ * Anything after the new Page class is protected by the authentication system automaticlly.
+ * You have to be logged in in order to take any action at that point,
+ * as if you're not logged in, stop the rest of the page execution and it will give you a login prompt.
+ * 
+ */
+
+if (isset($_POST['addDatabase']))
+{
+    Database::addDBToArray($_POST['dbName'], $_POST['dbPath']);
+}
+
+static $dbs = [];
+foreach ($Database as $name => $path)
+{
+    $dbs[] = new Database($path, $name); 
+}
+
+if (isset($_GET['db']) AND isset($_POST['sql']))
+{
+    try {
+        $resultSet = $dbs[$_GET['db']]->query($_POST['sql']);
+    } catch (Exception $e) {
+        $resultSet = $e;
+    }
+}
+
 ?>
         <style>
+            :root {
+                --bs-primary: #375D7A;
+            }
             /**
              * Dark Mode
              */
             html, body {
-                background: #FFF;
-                color: #000;
+                background: #375D7A;
+                color: #FFF;
             }
             a {
                 text-decoration: none;
+                color: #FA0 !important;
             }
-            header {
-                background: #000;
+            a:hover {
+                color: #FF0 !important;
             }
-            header a {
-                color: #FFF;
+            input {
+                border: 1px SOLID #4080B0 !important;
+                color: #FFF !important;
+                background: #193F5C !important;
             }
-            aside a {
-                color: #000;
-
+            input:focus {
+                outline: none;
+                background: #002040 !important;
+            }
+            input:active {
+                background: #002040 !important;
             }
             /**
              * Header
              */
             header {
+                background: #002040;
                 margin: 0;
                 padding: 0;
                 line-height: 1em;
+            }
+            header a {
+                color: #FFF;
             }
             header center {
                 padding-top: .75rem;
@@ -568,6 +701,8 @@ $page->emit();
              * Sidebar
              */
             aside {
+                background: #193F5C;
+                color: #FFF;
                 position: fixed;
                 top: 2.5rem;
                 padding-top: 1rem;
@@ -576,6 +711,9 @@ $page->emit();
                 z-index: 100; /* Behind the navbar */
                 box-shadow: inset -1rem 0 1rem rgba(0, 0, 0, .1);
                 overflow-y: auto
+            }
+            aside a {
+                color: #000;
             }
             aside dl {
                 margin: 0;
@@ -586,16 +724,40 @@ $page->emit();
                 padding: 0;
                 padding-left: 1rem;
             }
+            aside dl dt a {
+                color: #FF0 !important;
+            }
             aside dl dd {
                 margin: 0;
                 padding: 0;
                 padding-left: 2rem;
+            }
+            aside dl dd a {
+                color: #FA0 !important;
             }
             /**
              * Content
              */
             main {
                 padding-top: 1rem;
+            }
+            .null {
+                color: rgba(128, 128, 128, 0.25) !important;
+            }
+            .table {
+                color: #FFF;
+                border: #4080B0;
+            }
+            .table th {
+                text-align: center;
+            }
+            .table-striped > tbody > tr:nth-of-type(2n+1) {
+                color: #FFF;
+            }
+            .table-striped > tbody > tr:hover,
+            .table > tbody > tr:hover {
+                color:  #4080B0;
+                background: rgba(0, 0, 0, .5);
             }
         </style>
         <header class="navbar sticky-top flex-md-nowrap p-0 shadow">
@@ -610,9 +772,9 @@ $page->emit();
             <aside class="col-md-3 col-lg-2 d-md-block sidebar collapse">
 <?php   foreach ($dbs as $idx => $db): ?>
                 <dl class="flex-column">
-                    <dt><a class="<?=($db->selected()) ? 'active' : null?>" aria-current="page" href="?db=<?=$idx?>"><?=$db->strReadWrite()?> <?=$db->name?></a></dt>
+                    <dt>[<?=$db->strReadWrite()?>] <a class="<?=($db->selected()) ? 'active' : null?>" aria-current="page" href="?db=<?=$idx?>"><?=$db->name?></a></dt>
 <?php           foreach ($db->schema as $table):    ?>
-                    <dd><a class="<?=($db->selected($table['name'])) ? 'active' : null?>" aria-current="page" href="?db=<?=$idx?>&table=<?=$table['name']?>">[<?=$table['type']?>] <?=$table['name']?></a></dd>
+                    <dd>[<?=$table['type']?>] <a class="<?=($db->selected($table['name'])) ? 'active' : null?>" aria-current="page" href="?db=<?=$idx?>&table=<?=$table['name']?>"><?=$table['name']?></a></dd>
 <?php           endforeach; ?>
                 </dl>
 <?php   endforeach;  ?>
@@ -626,26 +788,87 @@ $page->emit();
 
                 <?php phpinfo(); ?>
 
-<?php   elseif (isset($_GET['db']) AND isset($_GET['table'])): ?>
+<?php   elseif (isset($_GET['db'])): ?>
 
-                <table class="table">
+<?php       if (isset($resultSet)): ?>
+<?php           if ($resultSet instanceof \Exception):  ?>
+                <div class="alert alert-warning"><?=$resultSet->getMessage();?></div>
+                <pre><?=print_r($resultSet, true)?></pre>
+<?php           else:   ?>
+                <pre><?=print_r($resultSet, true)?></pre>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+<?php           for ($i = 0, $j = $resultSet->columnCount(); $i < $j; $i++): ?>
+                            <th><?=$resultSet->getColumnMeta($i)['name']?></th>
+<?php           endfor; ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+<?php           foreach ($resultSet->fetchAll() as $row):   ?>
+                        <tr>
+<?php               foreach ($row as $col): ?>
+                            <td><?=(NULL === $col) ? '<span class="null">NULL</span>' : $col?></td>
+<?php               endforeach; ?>
+                        </tr>
+<?php           endforeach; ?>
+                    </tbody>
+                </table>
+<?php           endif;  ?>
+<?php       endif;  ?>
+
+                <form method="post" class="d-grid gap-2">
+                    <style type="text/css" media="screen">
+                        #editor { 
+                            font-size: 1em;
+                            height: 16em;
+                        }
+                    </style>
+                    <div id="editor"></div>
+                    <textarea name="sql" style="display: none;"></textarea>
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js" integrity="sha512-GZ1RIgZaSc8rnco/8CXfRdCpDxRCphenIiZ2ztLy3XQfCbQUSCuk8IudvNHxkRA3oUg6q0qejgN/qqyG1duv5Q==" crossorigin="anonymous"></script>
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/theme-twilight.min.js" integrity="sha512-2IqbT6swyxY2XnBLoAIUYyxu2Oj1XoS7AafJE/5q3vl0mmXyKxIIyKqh1jZNqZeNsp8uP8JRNtG2Z6sgoadXOA==" crossorigin="anonymous"></script>
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/mode-sql.min.js" integrity="sha512-wsE6/Wq6h/sr67KuoliMHvnS5FGqI1oW/gvbLgYKtWyfCChHi/T6tt8i+qvaIEdA9+JiW+d+51cA5fRdlfjGtw==" crossorigin="anonymous"></script>
+                    <script>
+                        var editor = ace.edit('editor');
+                        var postql = document.querySelector('textarea[name="sql"]');
+
+                        editor.setTheme('ace/theme/twilight');
+                        editor.session.setMode('ace/mode/sql');
+                        editor.session.on('change', (delta) => {
+                            console.log(delta);
+                            postql.innerHTML = editor.session.getValue();
+                        });
+                    </script>
+                    <button type="submit" class="btn btn-primary">Execute Statement</button>
+                </form>
+
+<?php       if (isset($_GET['table'])): ?>
+
+                <br />
+                <pre><?=$dbs[$_GET['db']]->getCreateStatement($_GET['table'])?></pre>
+                <br />
+
+                <table class="table table-striped table-hover table-responsive">
                     <thead>
                         <tr>
 <?php       foreach ($dbs[$_GET['db']]->getColums($_GET['table']) as ['name' => $name, 'type' => $type]):  ?>
-                            <td><?=$name?></td>
+                            <th><?=$name?></th>
 <?php       endforeach;   ?>
                         </tr>
                     </thead>
                     <tbody>
-<?php       foreach ( $dbs[$_GET['db']]->query("SELECT * FROM {$_GET['table']};") as $row ): ?>
+<?php       foreach ($dbs[$_GET['db']]->query("SELECT * FROM {$_GET['table']};") as $row ): ?>
                         <tr>
-<?php           foreach ($row as $item):    ?>
-                            <td><?=$item?></td>
+<?php           foreach ($row as $col):    ?>
+                            <td><?=(NULL === $col) ? '<span class="null">NULL</span>' : $col?></td>
 <?php           endforeach; ?>
                         </tr>
 <?php       endforeach; ?>
                     </tbody>
                 </table>
+
+<?php       endif;  ?>
 
 <?php   elseif (isset($_GET['db'])):   ?>
                 <label>Database name</label> <var><?=$dbs[$_GET['db']]->name?></var><br />
@@ -654,7 +877,7 @@ $page->emit();
                 <label>Database last modified</label> <var><?=$dbs[$_GET['db']]->getModifed()->format('Y-m-d H:i:s')?></var><br />
                 <label>SQLite version</label> <var><?=$dbs[$_GET['db']]->getVersion()?></var><br />
 
-                <table class="table">
+                <table class="table table-striped table-hover table-responsive">
                     <thead>
                         <tr>
                             <td>Type</td>
@@ -682,6 +905,50 @@ $page->emit();
                         </tr>
 <?php           endforeach; ?>
                     </tbody>
+                </table>
+
+<?php   else:   ?>
+
+                <pre><?=print_r($_POST, true)?></pre>
+
+                <table class="table table-striped table-hover table-responsive">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Modifed</th>
+                            <th>File Path</th>
+                            <th>File Size</th>
+                            <th>R/W</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+<?php       foreach ($dbs as $idx => $db): ?>
+                        <tr>
+                            <th><?=$idx?></th>
+                            <td><?=$db->name?></td>
+                            <td><?=$db->getModifed()->format('Y-m-d H:i:s')?></td>
+                            <td><?=$db->filePath?></td>
+                            <td><?=$db->getSize()?></td>
+                            <td><?=$db->strReadWrite()?></td>
+                        </tr>
+<?php       endforeach; ?>
+                    </tbody>
+                    <tfoot>
+                        <form method="post" target="_self">
+                            <tr>
+                                <th>
+                                    <button class="btn btn-block btn-primary" type="submit" name="addDatabase">+</button>
+                                </th>
+                                <th colspan="2">
+                                    <input class="form-control" type="text" name="dbName" placeholder="DB Name (SQL Database)" />
+                                </th>
+                                <th colspan="3">
+                                    <input class="form-control" type="text" name="dbPath" placeholder="DB Path (../database.db)" />
+                                </th>
+                            </tr>
+                        </form>
+                    </tfoot>
                 </table>
 
 <?php   endif;  ?>
